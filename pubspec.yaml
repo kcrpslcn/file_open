@@ -1,0 +1,22 @@
+name: file_open
+description: A plugin to receive file open events on macOS
+version: 0.1.0
+homepage: https://github.com/kcrpslcn/file_open
+
+environment:
+  sdk: ^3.0.0
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  pigeon: ^26.0.1
+
+flutter:
+  plugin:
+    platforms:
+      macos:
+        pluginClass: FileOpenPlugin
