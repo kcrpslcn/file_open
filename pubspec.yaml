@@ -1,5 +1,5 @@
 name: file_open
-description: A plugin to receive file open events on macOS
+description: A plugin to listen to file open events form the OS, such as double clicking a file
 version: 0.1.0
 homepage: https://github.com/kcrpslcn/file_open
 
