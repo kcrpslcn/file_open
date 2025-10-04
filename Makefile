@@ -20,6 +20,10 @@ upgrade: ## Upgrade dependencies
 	dart pub upgrade
 	cd example && dart pub upgrade
 
-.PHONY: example
-example: ## Run the example application
+.PHONY: example_macos
+example_macos: ## Run the example_macos application
 	cd example && flutter run -d macos
+
+.PHONY: example_windows
+example_windows: ## Run the example_windows application
+	cd example && flutter run -d windows

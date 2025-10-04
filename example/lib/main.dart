@@ -14,8 +14,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: const ExamplePage(),
+    return const MaterialApp(
+      home: ExamplePage(),
     );
   }
 }
@@ -36,6 +36,7 @@ class _ExamplePageState extends State<ExamplePage> {
     super.initState();
     FileOpen.onOpened.listen((uris) {
       setState(() => _opened.insertAll(0, uris));
+      if (!mounted) return;
       showFileOpenedSnackBar(context, uris);
     });
   }
