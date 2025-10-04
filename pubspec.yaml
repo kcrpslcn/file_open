@@ -20,3 +20,8 @@ flutter:
     platforms:
       macos:
         pluginClass: FileOpenPlugin
+      windows:
+        pluginClass: FileOpenPlugin
+        # Optional file name for the native implementation. The actual
+        # implementation files live under `windows/` in this package.
+        fileName: windows/file_open_plugin.cpp

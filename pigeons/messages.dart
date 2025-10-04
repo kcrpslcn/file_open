@@ -6,6 +6,8 @@ import 'package:pigeon/pigeon.dart';
     dartOptions: DartOptions(),
     swiftOut: 'macos/Classes/Messages.g.swift',
     swiftOptions: SwiftOptions(),
+    cppHeaderOut: 'macos/Classes/Messages.g.h',
+    cppSourceOut: 'macos/Classes/Messages.g.cpp',
   ),
 )
 @FlutterApi()
