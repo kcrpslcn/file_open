@@ -4,13 +4,6 @@
 
 #include "file_open_plugin.h"
 
-void FileOpenPluginRegisterWithRegistrar(
-    FlutterDesktopPluginRegistrarRef registrar) {
-  FileOpenPlugin::RegisterWithRegistrar(
-      flutter::PluginRegistrarManager::GetInstance()
-          ->GetRegistrar<flutter::PluginRegistrarWindows>(registrar));
-}
-
 void FileOpenPluginCApiRegisterWithRegistrar(
         FlutterDesktopPluginRegistrarRef registrar) {
     FileOpenPluginRegisterWithRegistrar(registrar);

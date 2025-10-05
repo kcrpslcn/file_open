@@ -5,6 +5,22 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+#include <codecvt>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace {
+
+constexpr wchar_t kMutexName[] = L"Global\\FileOpenHandlerSingletonMutex";
+constexpr wchar_t kWndClassName[] = L"FileOpenHandlerMessageWindow";
+
+HWND FindExistingWindow() {
+  return ::FindWindowW(kWndClassName, L"");
+}
+
+}  // namespace
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   // Attach to console when present (e.g., 'flutter run') or create a
@@ -16,6 +32,31 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
+  // Check for single instance
+  HANDLE hMutex = ::OpenMutexW(MUTEX_ALL_ACCESS, FALSE, kMutexName);
+  if (hMutex != nullptr) {
+    ::CloseHandle(hMutex);
+    // Secondary instance, forward args and exit
+    std::vector<std::string> command_line_arguments = GetCommandLineArguments();
+    if (!command_line_arguments.empty()) {
+      HWND target = FindExistingWindow();
+      if (target) {
+        std::string buf;
+        for (size_t i = 0; i < command_line_arguments.size(); ++i) {
+          buf.append(command_line_arguments[i]);
+          buf.push_back('\0');
+        }
+        buf.push_back('\0');
+        COPYDATASTRUCT cds{};
+        cds.dwData = 1;
+        cds.cbData = static_cast<DWORD>(buf.size());
+        cds.lpData = (PVOID)buf.data();
+        ::SendMessageW(target, WM_COPYDATA, 0, (LPARAM)&cds);
+      }
+    }
+    return EXIT_SUCCESS;
+  }
 
   flutter::DartProject project(L"data");
 

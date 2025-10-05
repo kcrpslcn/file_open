@@ -5,6 +5,8 @@ project(${PROJECT_NAME} LANGUAGES CXX)
 add_library(file_open_plugin SHARED
   "file_open_plugin.cpp"
   "file_open_plugin.h"
+  "file_open_plugin_c_api.cpp"
+  "include/file_open/messages.g.cpp"
 )
 
 apply_standard_settings(file_open_plugin)
@@ -15,10 +17,8 @@ set_target_properties(file_open_plugin PROPERTIES
 )
 
 target_compile_definitions(file_open_plugin PRIVATE FLUTTER_PLUGIN_IMPL)
-target_include_directories(file_open_plugin INTERFACE
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/file_open")
+target_include_directories(file_open_plugin PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 target_link_libraries(file_open_plugin PRIVATE flutter)
 target_link_libraries(file_open_plugin PRIVATE flutter_wrapper_plugin)
-
-set(flutter_ffi_plugin ON)

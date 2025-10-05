@@ -1,4 +1,5 @@
-#include "file_open_plugin.h"
+#define FLUTTER_PLUGIN_IMPLEMENTATION
+#include "file_open/file_open_plugin.h"
 
 #include <Windows.h>
 
@@ -60,6 +61,23 @@ std::wstring Utf8ToWString(const std::string& s) {
 
 }  // namespace
 
+bool FileOpenPlugin::logging_enabled_ = true;
+
+void FileOpenPlugin::DebugLog(const std::wstring& message) {
+  if (!logging_enabled_) {
+    return;
+  }
+  std::wstring line = message;
+  if (line.empty() || line.back() != L'\n') {
+    line.append(L"\n");
+  }
+  ::OutputDebugStringW(line.c_str());
+}
+
+void FileOpenPlugin::DebugLogUtf8(const std::string& message) {
+  DebugLog(Utf8ToWString(message));
+}
+
 FileOpenPlugin::FileOpenPlugin() {}
 FileOpenPlugin::~FileOpenPlugin() { DestroyMessageWindow(); if (instance_mutex_) { CloseHandle(instance_mutex_); instance_mutex_ = nullptr; } }
 
@@ -67,6 +85,8 @@ FileOpenPlugin::~FileOpenPlugin() { DestroyMessageWindow(); if (instance_mutex_)
 void FileOpenPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows *registrar) {
   auto plugin = std::make_unique<FileOpenPlugin>();
+
+  DebugLogUtf8("[FileOpenPlugin] Registering Windows implementation");
 
   // Enforce single-instance using a named mutex.
   plugin->instance_mutex_ = ::CreateMutexW(nullptr, TRUE, kMutexName);
@@ -80,6 +100,7 @@ void FileOpenPlugin::RegisterWithRegistrar(
   }
 
   if (is_secondary) {
+    DebugLogUtf8("[FileOpenPlugin] Secondary instance detected; forwarding arguments");
     // Forward to primary instance via WM_COPYDATA and exit early (no plugin registration retained).
     HWND target = FindExistingWindow();
     if (target && !initial_utf8.empty()) {
@@ -104,10 +125,21 @@ void FileOpenPlugin::RegisterWithRegistrar(
   // Primary instance continues: capture initial files.
   plugin->initial_files_ = std::move(initial_utf8);
 
+  DebugLogUtf8("[FileOpenPlugin] Primary instance ready");
+
   auto messenger = registrar->messenger();
 
   // Initialize Pigeon Flutter API to call back into Dart when files are opened.
-  plugin->flutter_api_ = std::make_unique<pigeon::FileOpenHandlerFlutterApi>(messenger);
+  plugin->flutter_api_ = std::make_unique<pigeon::FileOpenFlutterApi>(messenger);
+
+  // Emit initial files via Pigeon
+  if (!plugin->initial_files_.empty()) {
+    plugin->EmitFiles(plugin->initial_files_);
+    plugin->initial_files_.clear();
+  }
+
+  // Host API for calls originating from Dart.
+  pigeon::FileOpenHostApi::SetUp(messenger, plugin.get());
 
   // Method channel for getInitialFiles
   auto method_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -141,9 +173,8 @@ void FileOpenPlugin::RegisterWithRegistrar(
           plugin_ptr->pending_opened_.clear();
         }
         if (!plugin_ptr->initial_files_.empty()) {
-          flutter::EncodableList list;
-          for (const auto& s : plugin_ptr->initial_files_) list.emplace_back(s);
-          plugin_ptr->event_sink_->Success(list);
+          plugin_ptr->EmitFiles(plugin_ptr->initial_files_);
+          plugin_ptr->initial_files_.clear();
         }
         return nullptr;
       },
@@ -163,8 +194,8 @@ void FileOpenPlugin::RegisterWithRegistrar(
 }
 
 // Exported symbol
-void FileOpenPluginRegisterWithRegistrar(
-    FlutterDesktopPluginRegistrarRef registrar) {
+extern "C" FLUTTER_PLUGIN_EXPORT void FileOpenPluginRegisterWithRegistrar(
+  FlutterDesktopPluginRegistrarRef registrar) {
   FileOpenPlugin::RegisterWithRegistrar(
       flutter::PluginRegistrarManager::GetInstance()
           ->GetRegistrar<flutter::PluginRegistrarWindows>(registrar));
@@ -190,6 +221,15 @@ void FileOpenPlugin::DestroyMessageWindow() {
 
 void FileOpenPlugin::EmitFiles(const std::vector<std::string>& files) {
   if (files.empty()) return;
+  if (logging_enabled_) {
+    std::wstring message = L"[FileOpenPlugin] Emitting files";
+    for (const auto& s : files) {
+      message.append(L" \"");
+      message.append(Utf8ToWString(s));
+      message.append(L"\"");
+    }
+    DebugLog(message);
+  }
   // Always notify Dart via the Pigeon Flutter API if available. Also keep the
   // existing EventChannel semantics for compatibility.
   if (flutter_api_) {
@@ -231,4 +271,14 @@ LRESULT CALLBACK FileOpenPlugin::WndProc(HWND hwnd, UINT message, WPARAM wparam,
     }
   }
   return DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+std::optional<pigeon::FlutterError> FileOpenPlugin::SetLoggingEnabled(bool enabled) {
+  logging_enabled_ = enabled;
+  const wchar_t* status = enabled ? L"enabled" : L"disabled";
+  std::wstring message = L"[FileOpenPlugin] Logging ";
+  message.append(status);
+  message.append(L" by host request");
+  ::OutputDebugStringW((message + L"\n").c_str());
+  return std::nullopt;
 }

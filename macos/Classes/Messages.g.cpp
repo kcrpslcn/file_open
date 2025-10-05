@@ -14,6 +14,7 @@
 #include <optional>
 #include <string>
 
+namespace pigeon {
 using flutter::BasicMessageChannel;
 using flutter::CustomEncodableValue;
 using flutter::EncodableList;
@@ -145,3 +146,4 @@ EncodableValue FileOpenHostApi::WrapError(const FlutterError& error) {
   });
 }
 
+}  // namespace pigeon

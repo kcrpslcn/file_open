@@ -1,16 +1,32 @@
-# file_open_example
+# file_open example
 
-A new Flutter project.
+This app demonstrates how the `file_open` plugin receives launch events when a
+file with a registered extension is opened from Windows Explorer.
 
-## Getting Started
+## 🔗 File-type association via MSIX
 
-This project is a starting point for a Flutter application.
+The example reuses the same `.plidar` and `.loadfile` associations configured in
+the `flutter_file_type` sample. The configuration lives in
+`pubspec.yaml` under `msix_config`, and the `msix` tool is added as a
+development dependency.
 
-A few resources to get you started if this is your first Flutter project:
+To generate an MSIX package with the associations:
+
+```powershell
+flutter pub run msix:create
+```
+
+You will need a code-signing certificate that matches the
+`certificate_subject` in the manifest (update the values if you use your own).
+
+After installation, double-clicking a `.plidar` or `.loadfile` file will bring
+the app to the foreground and the `file_open` plugin will surface the launch
+event.
+
+## 🙋‍♀️ Need a primer on Flutter?
 
 - [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
 - [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Refer to the [Flutter online documentation](https://docs.flutter.dev) for more
+guidance on app development and APIs.

@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 
+namespace pigeon {
 
 
 // Generated class from Pigeon.
@@ -114,4 +115,5 @@ class FileOpenHostApi {
  protected:
   FileOpenHostApi() = default;
 };
+}  // namespace pigeon
 #endif  // PIGEON_MESSAGES_G_H_
