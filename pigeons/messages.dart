@@ -6,8 +6,8 @@ import 'package:pigeon/pigeon.dart';
     dartOptions: DartOptions(),
     swiftOut: 'macos/Classes/Messages.g.swift',
     swiftOptions: SwiftOptions(),
-    cppHeaderOut: 'windows/include/file_open/messages.g.h',
-    cppSourceOut: 'windows/include/file_open/messages.g.cpp',
+    cppHeaderOut: 'windows/file_open/messages.g.h',
+    cppSourceOut: 'windows/file_open/messages.g.cpp',
     cppOptions: CppOptions(namespace: 'pigeon'),
   ),
 )

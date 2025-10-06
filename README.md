@@ -1,10 +1,11 @@
 [![Pub Package](https://img.shields.io/pub/v/file_open.svg)](https://pub.dev/packages/file_open)
 
 # file_open
-Flutter plugin to receive file open events on macOS.
+Flutter plugin to receive file open events on macOS and Windows.
 
 ## Requirements
 - macOS 10.15 or later
+- Windows 10 or later
 
 ## API
 - `FileOpen.onOpened`: Stream of lists of URIs opened by the user. 
@@ -34,9 +35,13 @@ See [Apple's documentation](https://developer.apple.com/documentation/bundlereso
 Use this when your app creates its own file types not covered by standard system UTIs, allowing other apps to recognize and potentially open them. 
 See [Apple's documentation](https://developer.apple.com/documentation/bundleresources/information_property_list/utexportedtypedeclarations) for details.
 
+### Windows
+Windows support is automatically configured when you add the plugin to your Flutter project. The plugin handles file open events through command line arguments when files are associated with your application. No additional configuration is required in most cases.
+
 ## Example
 The example app in this repository demonstrates registering a custom file extension `.abcde` 
-in its [Info.plist](example/macos/Runner/Info.plist) to handle file open events.
+in its [Info.plist](example/macos/Runner/Info.plist) for macOS to handle file open events. 
+Windows support works automatically through the plugin without additional configuration.
 
 ## Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.

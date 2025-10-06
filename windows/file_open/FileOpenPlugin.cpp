@@ -1,5 +1,6 @@
 #define FLUTTER_PLUGIN_IMPLEMENTATION
-#include "file_open/file_open_plugin.h"
+// Public header moved to include/file_open
+#include <file_open/file_open_plugin.h>
 
 #include <Windows.h>
 
@@ -12,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <sstream>
 
 namespace {
 
@@ -39,9 +41,9 @@ std::string WStringToUtf8(const std::wstring& w) {
 }  // namespace
 
 namespace {
-constexpr wchar_t kMutexName[] = L"Global\\FileOpenHandlerSingletonMutex";
+// Message-only window class for receiving forwarded file open events (if the
+// runner chooses to implement forwarding). Currently unused.
 constexpr wchar_t kWndClassName[] = L"FileOpenHandlerMessageWindow";
-constexpr UINT kMsgId = WM_APP + 1001;  // not used; we'll use WM_COPYDATA
 
 struct CopyDataPayload {
   // Just UTF-8 data with NUL terminator(s) between multiple paths.
@@ -79,53 +81,37 @@ void FileOpenPlugin::DebugLogUtf8(const std::string& message) {
 }
 
 FileOpenPlugin::FileOpenPlugin() {}
-FileOpenPlugin::~FileOpenPlugin() { DestroyMessageWindow(); if (instance_mutex_) { CloseHandle(instance_mutex_); instance_mutex_ = nullptr; } }
+FileOpenPlugin::~FileOpenPlugin() { DestroyMessageWindow(); }
 
 // static
 void FileOpenPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows *registrar) {
-  auto plugin = std::make_unique<FileOpenPlugin>();
-
   DebugLogUtf8("[FileOpenPlugin] Registering Windows implementation");
 
-  // Enforce single-instance using a named mutex.
-  plugin->instance_mutex_ = ::CreateMutexW(nullptr, TRUE, kMutexName);
-  const DWORD err = GetLastError();
-  const bool is_secondary = (plugin->instance_mutex_ == nullptr) || (err == ERROR_ALREADY_EXISTS);
-
-  // Collect initial files from command line args.
-  std::vector<std::string> initial_utf8;
-  for (const auto& warg : GetCommandLineArgsW()) {
-    initial_utf8.push_back(WStringToUtf8(warg));
-  }
-
-  if (is_secondary) {
-    DebugLogUtf8("[FileOpenPlugin] Secondary instance detected; forwarding arguments");
-    // Forward to primary instance via WM_COPYDATA and exit early (no plugin registration retained).
-    HWND target = FindExistingWindow();
-    if (target && !initial_utf8.empty()) {
-      // Build a single UTF-8 buffer with NUL separators and double-NUL terminator.
-      std::string buf;
-      for (size_t i = 0; i < initial_utf8.size(); ++i) {
-        buf.append(initial_utf8[i]);
-        buf.push_back('\0');
-      }
-      buf.push_back('\0');
-      COPYDATASTRUCT cds{};
-      cds.dwData = 1;  // our protocol version/type
-      cds.cbData = static_cast<DWORD>(buf.size());
-      cds.lpData = (PVOID)buf.data();
-      // Send synchronously; ignore result.
-      SendMessageW(target, WM_COPYDATA, 0, (LPARAM)&cds);
+  // Create (or open) a named global mutex to enforce single instance per
+  // executable path. If it already exists we forward open arguments and bail.
+  std::wstring mutex_name = BuildGlobalMutexName();
+  HANDLE mutex = ::CreateMutexW(nullptr, FALSE, mutex_name.c_str());
+  if (mutex && GetLastError() == ERROR_ALREADY_EXISTS) {
+    // Secondary instance: forward command line args then quit early.
+    std::vector<std::string> to_forward;
+    for (const auto& warg : GetCommandLineArgsW()) {
+      to_forward.push_back(WStringToUtf8(warg));
     }
-    // Do not add the plugin; return to avoid conflicting instances.
-    return;
+    ForwardToPrimaryAndQuit(to_forward);
+    if (mutex) CloseHandle(mutex);
+    // Terminate this process before the runner shows another window.
+    ::ExitProcess(0);
   }
 
-  // Primary instance continues: capture initial files.
-  plugin->initial_files_ = std::move(initial_utf8);
+  auto plugin = std::make_unique<FileOpenPlugin>();
+  plugin->instance_mutex_ = mutex; // store so we can close later.
 
-  DebugLogUtf8("[FileOpenPlugin] Primary instance ready");
+  // Collect any initial file arguments for the first instance only.
+  for (const auto& warg : GetCommandLineArgsW()) {
+    plugin->initial_files_.push_back(WStringToUtf8(warg));
+  }
+  DebugLogUtf8("[FileOpenPlugin] Registered as primary instance");
 
   auto messenger = registrar->messenger();
 
@@ -188,13 +174,14 @@ void FileOpenPlugin::RegisterWithRegistrar(
 
   event_channel->SetStreamHandler(std::move(stream_handler));
 
+  // Optional: create a hidden message window if future forwarding is added.
   plugin->CreateMessageWindow();
 
   registrar->AddPlugin(std::move(plugin));
 }
 
 // Exported symbol
-extern "C" FLUTTER_PLUGIN_EXPORT void FileOpenPluginRegisterWithRegistrar(
+extern "C" void FileOpenPluginRegisterWithRegistrar(
   FlutterDesktopPluginRegistrarRef registrar) {
   FileOpenPlugin::RegisterWithRegistrar(
       flutter::PluginRegistrarManager::GetInstance()
@@ -216,6 +203,10 @@ void FileOpenPlugin::DestroyMessageWindow() {
   if (msg_hwnd_) {
     DestroyWindow(msg_hwnd_);
     msg_hwnd_ = nullptr;
+  }
+  if (instance_mutex_) {
+    CloseHandle(instance_mutex_);
+    instance_mutex_ = nullptr;
   }
 }
 
@@ -281,4 +272,38 @@ std::optional<pigeon::FlutterError> FileOpenPlugin::SetLoggingEnabled(bool enabl
   message.append(L" by host request");
   ::OutputDebugStringW((message + L"\n").c_str());
   return std::nullopt;
+}
+
+// static
+void FileOpenPlugin::ForwardToPrimaryAndQuit(const std::vector<std::string>& files) {
+  HWND primary = FindExistingWindow();
+  if (!primary || files.empty()) return;
+  // Build a double-NUL terminated UTF-8 blob of paths (matching receive code).
+  std::ostringstream oss;
+  for (const auto& f : files) {
+    oss.write(f.c_str(), f.size());
+    oss.put('\0');
+  }
+  oss.put('\0');
+  std::string blob = oss.str();
+  COPYDATASTRUCT cds{};
+  cds.dwData = 0;
+  cds.cbData = static_cast<DWORD>(blob.size());
+  cds.lpData = blob.data();
+  SendMessageW(primary, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
+}
+
+// static
+std::wstring FileOpenPlugin::BuildGlobalMutexName() {
+  wchar_t path[MAX_PATH] = {0};
+  GetModuleFileNameW(nullptr, path, MAX_PATH);
+  // Simple hash to shorten name.
+  unsigned long hash = 2166136261u;
+  for (const wchar_t* p = path; *p; ++p) {
+    hash ^= static_cast<unsigned long>(*p);
+    hash *= 16777619u;
+  }
+  wchar_t name[64];
+  swprintf_s(name, L"Global/FileOpenPlugin_%08lX", hash);
+  return name;
 }

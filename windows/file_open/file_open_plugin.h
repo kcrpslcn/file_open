@@ -5,7 +5,7 @@
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
 #include <flutter/event_sink.h>
-#include "../../file_open/messages.g.h"  // relative path into sources
+#include "messages.g.h"
 
 #include <optional>
 
@@ -26,18 +26,22 @@ class FileOpenPlugin : public flutter::Plugin, public pigeon::FileOpenHostApi {
   FileOpenPlugin();
   virtual ~FileOpenPlugin();
 
+  // Disallow copy and assign.
   FileOpenPlugin(const FileOpenPlugin&) = delete;
   FileOpenPlugin& operator=(const FileOpenPlugin&) = delete;
 
  private:
+  // Messaging window for primary instance to receive forwarded opens.
   HWND msg_hwnd_ = nullptr;
   HANDLE instance_mutex_ = nullptr;
 
   std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> event_sink_;
   std::vector<std::string> initial_files_;
   std::vector<std::string> pending_opened_;
+  // Pigeon-generated Flutter API to call back into Dart when files are opened.
   std::unique_ptr<pigeon::FileOpenFlutterApi> flutter_api_;
 
+  // Host API implementation entry point.
   std::optional<pigeon::FlutterError> SetLoggingEnabled(bool enabled) override;
 
   static void DebugLog(const std::wstring& message);
@@ -48,7 +52,12 @@ class FileOpenPlugin : public flutter::Plugin, public pigeon::FileOpenHostApi {
   void DestroyMessageWindow();
   void EmitFiles(const std::vector<std::string>& files);
 
+  // Helper used during registration (secondary instance) to forward command
+  // line file arguments to the primary instance and request application exit.
   static void ForwardToPrimaryAndQuit(const std::vector<std::string>& files);
+
+  // Builds a per-executable global mutex name to allow multiple apps using the
+  // plugin to each have their own single-instance domain.
   static std::wstring BuildGlobalMutexName();
 
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) noexcept;
